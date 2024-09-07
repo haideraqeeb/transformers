@@ -43,3 +43,55 @@ class SelfAttention(nn.Module):
             self.qln = nn.LayerNorm([s])
 
         self.scalefactor = 1/math.sqrt(emb//heads) if scalefactor is None else scalefactor
+
+    def forward(self, x):
+        b, t, e = x.size()
+
+        """
+        :b: batch size
+        :t: embedding tokens in the sequence(vectors)
+        :e: dimension of each vector
+        """
+        h = self.heads
+
+        assert e == self.emb, f'Input embedding dimension ({e}) should match layer embedding dimension ({self.emb})'
+
+        s = e//h
+
+        queries = self.toqueries(x)
+        keys = self.tokeys(x)
+        values = self.tovalues(x)
+
+        #dividing into a number of chunks to work with multiple self attention heads
+
+        keys = keys.view(b, t, h, s)
+        queries = queries.view(b, t, h, s)
+        values = values.view(b, t, h, s)
+
+        if self.kqnorm:
+            keys = self.kln(keys)
+            queries = self.qln(queries)
+
+        #folding the heads into the batch dimension
+
+        keys = keys.transpose(1, 2).contiguous().view(b * h, t, s)
+        queries = queries.transpose(1, 2).contiguous().view(b * h, t, s)
+        values = values.transpose(1, 2).contiguous().view(b * h, t, s)
+
+        #computing the scaled dot product self attention
+
+        dot = torch.bmm(queries, keys.transpose(1, 2))        
+        dot = dot * self.scalefactor
+
+        assert dot.size() == (b * h, t, t)
+
+        if self.mask:
+            mask_(dot, maskval=float('-inf'), mask_diagonal=False)
+
+        dot = F.softmax(dot, dim=2)
+
+        y = torch.bmm(dot, values).view(b, h, t, s)
+
+        out = out.transpose(1, 2).contiguous().views(b, t, s * h)
+
+        return self.unifyheads(out)
