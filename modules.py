@@ -3,8 +3,6 @@ import torch
 from torch import nn
 import torch.functional as F
 
-import random, math, sys
-
 class SelfAttention(nn.Module):
     """
     Implementation of multi-head self attention
