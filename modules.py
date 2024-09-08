@@ -1,5 +1,4 @@
-from .util import mask_, d, slice_diag
-
+from .util import mask_, d
 import torch
 from torch import nn
 import torch.functional as F
